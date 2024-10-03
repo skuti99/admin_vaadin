@@ -3,11 +3,8 @@ package com.panel.application.views;
 import com.panel.application.data.User;
 import com.panel.application.security.AuthenticatedUser;
 import com.panel.application.views.addclient.AddClientView;
-import com.panel.application.views.adduser.AddUserView;
 import com.panel.application.views.clients.ClientsView;
 import com.panel.application.views.editclient.EditClientView;
-import com.panel.application.views.edituser.EditUserView;
-import com.panel.application.views.users.UsersView;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.avatar.Avatar;
@@ -85,19 +82,6 @@ public class MainLayout extends AppLayout {
             nav.addItem(new SideNavItem("Edit Client", EditClientView.class, LineAwesomeIcon.USER.create()));
 
         }
-        if (accessChecker.hasAccess(UsersView.class)) {
-            nav.addItem(new SideNavItem("Users", UsersView.class, LineAwesomeIcon.FILTER_SOLID.create()));
-
-        }
-        if (accessChecker.hasAccess(AddUserView.class)) {
-            nav.addItem(new SideNavItem("Add User", AddUserView.class, LineAwesomeIcon.USER.create()));
-
-        }
-        if (accessChecker.hasAccess(EditUserView.class)) {
-            nav.addItem(new SideNavItem("Edit User", EditUserView.class, LineAwesomeIcon.USER.create()));
-
-        }
-
         return nav;
     }
 

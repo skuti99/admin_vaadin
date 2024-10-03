@@ -1,7 +1,7 @@
 package com.panel.application.views.clients;
 
-import com.panel.application.data.SamplePerson;
-import com.panel.application.services.SamplePersonService;
+import com.panel.application.data.Client;
+import com.panel.application.services.ClientService;
 import com.panel.application.views.MainLayout;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Text;
@@ -9,6 +9,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.CheckboxGroup;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
+import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dependency.Uses;
 import com.vaadin.flow.component.grid.Grid;
@@ -16,6 +17,8 @@ import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -25,6 +28,7 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.spring.data.VaadinSpringDataHelpers;
 import com.vaadin.flow.theme.lumo.LumoUtility;
+
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -42,13 +46,15 @@ import org.springframework.data.jpa.domain.Specification;
 @Uses(Icon.class)
 public class ClientsView extends Div {
 
-    private Grid<SamplePerson> grid;
+    private Grid<Client> grid;
 
     private Filters filters;
-    private final SamplePersonService samplePersonService;
+    private final ClientService clientService;
+    
+    private ConfirmDialog deleteDialog = new ConfirmDialog();
 
-    public ClientsView(SamplePersonService SamplePersonService) {
-        this.samplePersonService = SamplePersonService;
+    public ClientsView(ClientService ClientService) {
+        this.clientService = ClientService;
         setSizeFull();
         addClassNames("clients-view");
 
@@ -58,10 +64,10 @@ public class ClientsView extends Div {
         layout.setPadding(false);
         layout.setSpacing(false);
         add(layout);
+               
     }
 
     private HorizontalLayout createMobileFilters() {
-        // Mobile version
         HorizontalLayout mobileFilters = new HorizontalLayout();
         mobileFilters.setWidthFull();
         mobileFilters.addClassNames(LumoUtility.Padding.MEDIUM, LumoUtility.BoxSizing.BORDER,
@@ -84,7 +90,7 @@ public class ClientsView extends Div {
         return mobileFilters;
     }
 
-    public static class Filters extends Div implements Specification<SamplePerson> {
+    public static class Filters extends Div implements Specification<Client> {
 
         private final TextField name = new TextField("Name");
         private final TextField phone = new TextField("Phone");
@@ -106,7 +112,6 @@ public class ClientsView extends Div {
             roles.setItems("Worker", "Supervisor", "Manager", "External");
             roles.addClassName("double-width");
 
-            // Action buttons
             Button resetBtn = new Button("Reset");
             resetBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
             resetBtn.addClickListener(e -> {
@@ -126,8 +131,10 @@ public class ClientsView extends Div {
             actions.addClassName(LumoUtility.Gap.SMALL);
             actions.addClassName("actions");
 
-            add(name, phone, createDateRangeFilter(), occupations, roles, actions);
+            add(name, phone, createDateRangeFilter(), roles, actions);
         }
+        
+        
 
         private Component createDateRangeFilter() {
             startDate.setPlaceholder("From");
@@ -146,7 +153,7 @@ public class ClientsView extends Div {
         }
 
         @Override
-        public Predicate toPredicate(Root<SamplePerson> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) {
+        public Predicate toPredicate(Root<Client> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) {
             List<Predicate> predicates = new ArrayList<>();
 
             if (!name.isEmpty()) {
@@ -219,7 +226,7 @@ public class ClientsView extends Div {
     }
 
     private Component createGrid() {
-        grid = new Grid<>(SamplePerson.class, false);
+        grid = new Grid<>(Client.class, false);
         grid.addColumn("firstName").setAutoWidth(true);
         grid.addColumn("lastName").setAutoWidth(true);
         grid.addColumn("email").setAutoWidth(true);
@@ -227,18 +234,58 @@ public class ClientsView extends Div {
         grid.addColumn("dateOfBirth").setAutoWidth(true);
         grid.addColumn("occupation").setAutoWidth(true);
         grid.addColumn("role").setAutoWidth(true);
-
-        grid.setItems(query -> samplePersonService.list(
+        
+        //Action buttons column
+        grid.addComponentColumn(client -> {
+        	
+        	HorizontalLayout actionsButtonsLayout = new HorizontalLayout();
+        	
+            Button deleteButton = new Button(VaadinIcon.CLOSE.create());
+            deleteButton.addClickListener(event -> openDeletionDialog(client));
+            actionsButtonsLayout.add(deleteButton);
+            
+            Button editButton = new Button(VaadinIcon.EDIT.create());
+            editButton.addClickListener(event -> {getUI().ifPresent(ui -> ui.navigate("edit-client/" + client.getId()));});
+            actionsButtonsLayout.add(editButton);
+            
+            return actionsButtonsLayout;
+                        
+        }).setHeader("Actions");
+        
+      
+        
+        grid.setItems(query -> clientService.list(
                 PageRequest.of(query.getPage(), query.getPageSize(), VaadinSpringDataHelpers.toSpringDataSort(query)),
                 filters).stream());
+
         grid.addThemeVariants(GridVariant.LUMO_NO_BORDER);
         grid.addClassNames(LumoUtility.Border.TOP, LumoUtility.BorderColor.CONTRAST_10);
+        
 
         return grid;
     }
 
+    
+    
+    private void openDeletionDialog(Client client) {
+    	deleteDialog.getElement().setAttribute("aria-label", "Confirm deletion");
+        deleteDialog.setHeader("Delete customer");
+    	deleteDialog.setText(client.getFirstName()+" "+client.getLastName());
+    	deleteDialog.setCancelable(true);
+    	deleteDialog.setConfirmText("Delete");
+    	deleteDialog.addConfirmListener(event -> deleteClient(client));
+    	deleteDialog.open();
+    }
+    
+    
+    private void deleteClient(Client client) {
+    	clientService.delete(client.getId());
+    	refreshGrid();    	
+    }
+    
     private void refreshGrid() {
         grid.getDataProvider().refreshAll();
-    }
+    }    
+    
 
 }
